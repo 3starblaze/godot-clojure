@@ -2,6 +2,7 @@
   (:use
    [clojure.java.shell :only [sh]])
   (:require
+   [clojure.data.json :as json]
    [clojure.string :as str]))
 
 (defn read-gdextension-interface-ast
@@ -24,6 +25,7 @@
 
   The map does not contain argument names because the AST discarded that information."
   [m]
+  {:pre [(= (get m "kind") "TypedefDecl")]}
   ;; All function signatures have "(*)" in the middle, so we can split the string there
   (let [[return-type argument-types]
         (str/split (get-in m ["type" "qualType"]) #"\(\*\)")
@@ -37,3 +39,50 @@
             (-> argument-types
                 strip-parens
                 (str/split #",")))}))
+
+(defn param-command-comment->info
+  [m]
+  {:pre [(= (get m "kind") "ParamCommandComment")]}
+  {:name (-> m (get "param"))
+   :doc (-> m (get "inner") first (get "inner") first (get "text") str/trim)})
+
+(defn function-typedef->function-data
+  [m]
+  {:pre [(= (get m "kind") "TypedefDecl")]}
+  (let [comment-nodes (-> (filter #(= (get % "kind") "FullComment") (get m "inner"))
+                          first
+                          (get "inner"))
+        function-name (-> (filter #(= (get % "kind") "VerbatimLineComment") comment-nodes)
+                          first
+                          (get "text")
+                          str/trim)
+        since-info (-> (filter #(= (get % "name") "since") comment-nodes)
+                       first
+                       (get "inner")
+                       first
+                       (get "inner")
+                       first
+                       (get "text")
+                       str/trim)
+        param-info (->> comment-nodes
+                        (filter #(= (get % "kind") "ParamCommandComment"))
+                        (map param-command-comment->info))
+        signature-info (function-typedef->signature m)]
+    {:name function-name
+     :since since-info
+     :params (map (fn [named-info type]
+                    {:name (:name named-info)
+                     :type type
+                     :doc (:doc named-info)})
+                  param-info
+                  (:args signature-info))
+     :return (:return signature-info)}))
+
+(defn get-header-info
+  "Return a map that provides useful information about gdextension_interface.h"
+  []
+  {:functions
+   (->> (read-gdextension-interface-ast)
+        json/read-str
+        gather-function-typedefs
+        (map function-typedef->function-data))})
