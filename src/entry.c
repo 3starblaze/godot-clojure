@@ -1,3 +1,29 @@
+/**
+ * entry.c -- Source code for passing Godot-assigned pointers to Clojure.
+ *
+ * The main function is `godot_entry` which is called by Godot via GDExtension.
+ *
+ * The process is rather simple. We take the classpath from env, initialize JVM,
+ * take some Clojure functions that can invoke any Clojure stuff and eventually
+ * call a handler function on Clojure side.
+ *
+ * This file contains several helpers to make the communication cleaner.
+ *
+ * These links will help you understand this file better:
+ * - https://clojure.org/reference/java_interop#_calling_clojure_from_java [2024-03-01]
+ *   Describes how Clojure can be called from Java.
+ *
+ * - https://docs.oracle.com/en/java/javase/11/docs/specs/jni/invocation.html [2024-03-01]
+ *   Describes how to call Java from C.
+ *
+ * - https://stackoverflow.com/questions/8066253/compute-a-java-functions-signature [2024-03-01]
+ *   Explains how to construct a signature string which is used by functions like
+ *   GetStaticMethodID to choose a correct method. This will also give a better
+ *   understanding of *_SIG constants.
+ *
+ * Also make sure to read <jni.h> which contains all available JNI functions.
+ */
+
 #include <stdio.h>
 #include <jni.h>
 #include <stdlib.h>
@@ -8,6 +34,7 @@
 #define CLJ_IFN_CLASS "clojure/lang/IFn"
 #define CLJ_CLJ_CLASS "clojure/java/api/Clojure"
 
+// Turn class name into function/method signature representation
 #define SIG_C(C) "L" C ";"
 #define VAR_SIG     "(" SIG_C(J_OBJ_CLASS) SIG_C(J_OBJ_CLASS) ")" SIG_C(CLJ_IFN_CLASS)
 #define READ_SIG    "(" SIG_C(J_STR_CLASS) ")"                    SIG_C(J_OBJ_CLASS)
