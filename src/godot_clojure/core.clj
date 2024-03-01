@@ -1,4 +1,5 @@
 (ns godot-clojure.core
+  (:gen-class)
   (:use
    [clojure.java.shell :only [sh]])
   (:require
@@ -86,3 +87,7 @@
         json/read-str
         gather-function-typedefs
         (map function-typedef->function-data))})
+
+(defn entry-point [p-get-proc-address]
+  (println "Entry point has been called!")
+  (println (format "We got a pointer: %s!" p-get-proc-address)))
