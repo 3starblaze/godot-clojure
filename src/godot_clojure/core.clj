@@ -4,7 +4,10 @@
    [clojure.java.shell :only [sh]])
   (:require
    [clojure.data.json :as json]
-   [clojure.string :as str]))
+   [clojure.string :as str]
+   [insn.core :as insn])
+  (:import
+   [com.sun.jna Function Pointer Structure]))
 
 (defn read-gdextension-interface-ast
   "Generate gd_extension.h AST and return it as JSON string."
@@ -88,6 +91,34 @@
         gather-function-typedefs
         (map function-typedef->function-data))})
 
+;; Example struct to check struct handling
+(def godot-version-struct-info
+  (let [int-field (fn [name] {:flags [:public]
+                              :type :int
+                              :name name})]
+    {:name 'godot-clojure.core.gen.structs
+     :super 'com.sun.jna.Structure
+     :annotations {com.sun.jna.Structure$FieldOrder
+                   ["major" "minor" "patch" "string"]}
+     :fields [(int-field "major")
+              (int-field "minor")
+              (int-field "patch")
+              {:flags [:public]
+               :type String
+               :name "string"}]}))
+
+(def godot-version-structure (insn/define godot-version-struct-info))
+
 (defn entry-point [p-get-proc-address]
-  (println "Entry point has been called!")
-  (println (format "We got a pointer: %s!" p-get-proc-address)))
+  (let [proc-fn (Function/getFunction (Pointer. p-get-proc-address))
+        get-godot-version (Function/getFunction
+                           (.invokePointer proc-fn (to-array ["get_godot_version"])))
+        payload (.newInstance godot-version-structure)]
+    (.invokeVoid get-godot-version (to-array [^Object payload]))
+    (println "Reporting from Clojure!")
+    (println (format "v%d.%d.%d -- %s"
+                     (.-major payload)
+                     (.-minor payload)
+                     (.-patch payload)
+                     (.-string payload)))
+    (println "Report from Clojure is over!")))

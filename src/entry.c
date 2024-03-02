@@ -208,18 +208,6 @@ godot_entry(
   ifn_invoke1(&clj, entry_callback, new_long(env, (jlong)p_get_proc_address));
   HALT_ON_ERR(env);
 
-
-  GDExtensionGodotVersion version_info;
-  GDExtensionInterfaceGetGodotVersion get_godot_version
-    = (GDExtensionInterfaceGetGodotVersion)p_get_proc_address("get_godot_version");
-  get_godot_version(&version_info);
-
-  printf("Godot Version info:\n");
-  printf("  major: %i\n", version_info.major);
-  printf("  minor: %i\n", version_info.minor);
-  printf("  patch: %i\n", version_info.patch);
-  printf("  str: %s\n", version_info.string);
-
   // These functions have to be initialized to prevent crashing
   r_initialization->initialize = noop;
   r_initialization->deinitialize = noop;
