@@ -81,16 +81,16 @@
                   (:args signature-info))
      :return (:return signature-info)}))
 
-(defn unit-typedef? [unit]
+(defn- unit-typedef? [unit]
   (= (get unit "kind") "TypedefDecl"))
 
-(defn unit-get-real-type [unit]
+(defn- unit-get-real-type [unit]
   (get-in unit ["type" "qualType"]))
 
-(defn unit-struct? [unit]
+(defn- unit-struct? [unit]
   (str/starts-with? (unit-get-real-type unit) "struct "))
 
-(defn unit-enum? [unit]
+(defn- unit-enum? [unit]
   (str/starts-with? (unit-get-real-type unit) "enum "))
 
 (defn- unit-gd-type? [unit]
@@ -192,10 +192,12 @@
   "Return a map that provides useful information about gdextension_interface.h."
   []
   (ensure-dir! "build")
-  (spit
-   "build/gdextension-interpretation.edn"
-   {:functions
-    (->> (read-gdextension-interface-ast!)
-         json/read-str
-         gather-function-typedefs
-         (map function-typedef->function-data))}))
+  (let [ast (json/read-str (read-gdextension-interface-ast!))]
+    (spit
+     "build/gdextension-interpretation.edn"
+     {:functions (->> ast
+                      gather-function-typedefs
+                      (map function-typedef->function-data))
+      :structs (extract-structs ast)
+      :enums (extract-enums ast)
+      :irreducible-type-mapping (extract-irreducible-type-mapping ast)})))
