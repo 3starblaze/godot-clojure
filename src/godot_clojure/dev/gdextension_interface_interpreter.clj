@@ -81,6 +81,28 @@
                   (:args signature-info))
      :return (:return signature-info)}))
 
+(defn- extract-irreducible-type-mapping
+  "Extract mapping for types that should not be untypedef'd.
+
+  For example `GDExtensionStringNamePtr` is actually a void * but we don't want to lose
+  the type information by reducing this specific type into a void*."
+  [ast]
+  (let [typedef? #(= (get % "kind") "TypedefDecl")
+        get-real-type #(get-in % ["type" "qualType"])
+        fn-ptr? #(.contains (get-real-type %) "(*)")
+        gd-type? #(str/starts-with? (get % "name") "GD")
+        enum? #(str/starts-with? (get-real-type %) "enum ")
+        struct? #(str/starts-with? (get-real-type %) "struct ")
+        gen-mapping #(vector (get % "name") (get-in % ["type" "qualType"]))]
+    (->> (get ast "inner")
+         (filter typedef?)
+         (filter gd-type?)
+         (filter (complement fn-ptr?))
+         (filter (complement enum?))
+         (filter (complement struct?))
+         (map gen-mapping)
+         (into {}))))
+
 (defn- ensure-dir!
   [dir-name]
   ;; TODO Handle situation when f exists but is not a dir
