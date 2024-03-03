@@ -1,3 +1,37 @@
 #+title: godot-clojure
 
 Godot + Clojure integration via GDExtension.
+
+* Dev info
+** Dev dependencies
+- =clang= :: Is used to obtain "gdextension_interface.h" AST
+- =clj-kondo= :: Static analysis and linting
+** Scripts
+- ~clj-kondo --lint src/~ :: lint
+** How to test code?
+1. Build =entry.so= with =make= and copy it into your Godot project root.
+2. Compile core with ~clojure -M -e "(compile 'godot-clojure.core)"~
+3. Make =Main.gdextension= (or something that matches =^\w+\.gdextension$= regex) in Godot project root and write this inside.
+   #+begin_src
+[configuration]
+entry_symbol = "godot_entry"
+compatibility_minimum = 4.1.0
+reloadable = true
+
+[libraries]
+linux.x86_64       = "res://entry.so"
+linux.debug.x86_64 = "res://entry.so"
+   #+end_src
+4. Export env vars =LD_LIBRARY_PATH=, =CLASSPATH= and =BUILDPATH=.
+   - =LD_LIBRARY_PATH= :: <jvm-path>/lib/server (e.g. /usr/lib/jvm/java-1.11.0-openjdk-amd64/lib/server)
+
+   - =CLASSPATH= :: Run ~clojure -Spath~ in =godot-clojure= root and use that.
+
+   - =BUILDPATH= :: Absolute path to <godot-clojure-root>/build
+5. Run ~godot <your-project>.godot~
+
+
+*** Notes
+- =entry.so= needs to be recompiled only when =src/entry.c= is modified.
+- =godot-clojure.core= needs to be recompiled only when the core source file changes.
+- Env var exporting is rather clunky, this will be handled automatically in the future.
