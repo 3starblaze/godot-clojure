@@ -81,27 +81,60 @@
                   (:args signature-info))
      :return (:return signature-info)}))
 
+(defn unit-typedef? [unit]
+  (= (get unit "kind") "TypedefDecl"))
+
+(defn unit-get-real-type [unit]
+  (get-in unit ["type" "qualType"]))
+
+(defn unit-struct? [unit]
+  (str/starts-with? (unit-get-real-type unit) "struct "))
+
+(defn- unit-gd-type? [unit]
+  (str/starts-with? (get unit "name") "GD"))
+
 (defn- extract-irreducible-type-mapping
   "Extract mapping for types that should not be untypedef'd.
 
   For example `GDExtensionStringNamePtr` is actually a void * but we don't want to lose
   the type information by reducing this specific type into a void*."
   [ast]
-  (let [typedef? #(= (get % "kind") "TypedefDecl")
-        get-real-type #(get-in % ["type" "qualType"])
-        fn-ptr? #(.contains (get-real-type %) "(*)")
-        gd-type? #(str/starts-with? (get % "name") "GD")
-        enum? #(str/starts-with? (get-real-type %) "enum ")
-        struct? #(str/starts-with? (get-real-type %) "struct ")
+  (let [unit-fn-ptr? #(.contains (unit-get-real-type %) "(*)")
+        unit-enum? #(str/starts-with? (unit-get-real-type %) "enum ")
         gen-mapping #(vector (get % "name") (get-in % ["type" "qualType"]))]
     (->> (get ast "inner")
-         (filter typedef?)
-         (filter gd-type?)
-         (filter (complement fn-ptr?))
-         (filter (complement enum?))
-         (filter (complement struct?))
+         (filter unit-typedef?)
+         (filter unit-gd-type?)
+         (filter (complement unit-fn-ptr?))
+         (filter (complement unit-enum?))
+         (filter (complement unit-struct?))
          (map gen-mapping)
          (into {}))))
+
+(defn- extract-structs
+  [ast]
+  (let [unit-struct-decl? #(= (get % "kind") "RecordDecl")
+        ;; "ownedTagDecl" also has "kind" attribute which is probably always "RecordDecl"
+        ;; in our case so we don't check it.
+        decl-id->name (->> (get ast "inner")
+                           (filter unit-typedef?)
+                           (filter unit-gd-type?)
+                           (filter unit-struct?)
+                           (map #(vector (get-in % ["inner" 0 "ownedTagDecl" "id"])
+                                         (get % "name")))
+                           (into {}))
+        collect-struct-members #(->> (get % "inner")
+                                     (map (fn [field]
+                                            {:name (get field "name")
+                                             :type (get-in field ["type" "qualType"])})))]
+    (->> (filter unit-struct-decl? (get ast "inner"))
+         (map (fn [decl]
+                (when-let [struct-name (get decl-id->name (get decl "id"))]
+                  [struct-name decl])))
+         (filter (complement nil?))
+         (map (fn [[struct-name decl]]
+                {:name struct-name
+                 :members (collect-struct-members decl)})))))
 
 (defn- ensure-dir!
   [dir-name]
