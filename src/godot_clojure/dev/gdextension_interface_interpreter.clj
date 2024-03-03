@@ -1,15 +1,14 @@
 (ns godot-clojure.dev.gdextension-interface-interpreter
-  (:use
-   [clojure.java.io :as io]
-   [clojure.java.shell :only [sh]])
   (:require
    [clojure.data.json :as json]
+   [clojure.java.io :as io]
+   [clojure.java.shell :as shell]
    [clojure.string :as str]))
 
 (defn- read-gdextension-interface-ast!
   "Generate gd_extension.h AST and return it as JSON string."
   []
-  (let [res (sh "clang" "-Xclang" "-ast-dump=json" "godot-headers/gdextension_interface.h")]
+  (let [res (shell/sh "clang" "-Xclang" "-ast-dump=json" "godot-headers/gdextension_interface.h")]
     (if (zero? (:exit res))
       (:out res)
       (throw (Throwable. (format "Unexpected error when getting AST: %s" (:err res)))))))
@@ -74,9 +73,9 @@
         signature-info (function-typedef->signature m)]
     {:name function-name
      :since since-info
-     :params (map (fn [named-info type]
+     :params (map (fn [named-info arg-type]
                     {:name (:name named-info)
-                     :type type
+                     :type arg-type
                      :doc (:doc named-info)})
                   param-info
                   (:args signature-info))
@@ -93,7 +92,7 @@
 ;; TODO Expose a schema so that the information shape is more clear
 ;; TODO Don't hardcode build dir and export file name
 (defn export-header-info!
-  "Return a map that provides useful information about gdextension_interface.h"
+  "Return a map that provides useful information about gdextension_interface.h."
   []
   (ensure-dir! "build")
   (spit

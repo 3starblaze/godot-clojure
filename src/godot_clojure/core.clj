@@ -6,9 +6,10 @@
 
 ;; Example struct to check struct handling
 (def godot-version-struct-info
-  (let [int-field (fn [name] {:flags [:public]
-                              :type :int
-                              :name name})]
+  (let [int-field (fn [field-name]
+                    {:flags [:public]
+                     :type :int
+                     :name field-name})]
     {:name 'godot-clojure.core.gen.structs
      :super 'com.sun.jna.Structure
      :annotations {com.sun.jna.Structure$FieldOrder

@@ -1,10 +1,9 @@
 (ns godot-clojure.native-caller
   (:require
    [clojure.edn :as edn]
-   [clojure.java.io :as io]
-   [godot-clojure.gdextension-interface-analyzer :as analyzer])
+   [clojure.java.io :as io])
   (:import
-   [com.sun.jna Function Pointer Structure]))
+   [com.sun.jna Function Pointer]))
 
 (defonce proc-loader-f nil)
 (defonce header-info nil)
@@ -49,15 +48,15 @@
     "void" Void
     (throw (Throwable. (format "Unexpected c-type \"%s\"" c-type)))))
 
-(defn call! [name & args]
+(defn call! [f-name & args]
   (let [fn-info (->> (:functions header-info)
-                     (filter #(= (:name %) name))
+                     (filter #(= (:name %) f-name))
                      first)]
     (when (nil? fn-info)
       (throw (Throwable. (format "Native function `%s` does not exist!" name))))
     (when (not (args-match? fn-info args))
       (throw (Throwable. (format "Function arguments are mismatched!"))))
-    (let [native-f (->> (to-array [name])
+    (let [native-f (->> (to-array [f-name])
                         (.invokePointer proc-loader-f)
                         Function/getFunction)
           ret-type (c-type->java-type (:return fn-info))]
