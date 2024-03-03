@@ -90,6 +90,9 @@
 (defn unit-struct? [unit]
   (str/starts-with? (unit-get-real-type unit) "struct "))
 
+(defn unit-enum? [unit]
+  (str/starts-with? (unit-get-real-type unit) "enum "))
+
 (defn- unit-gd-type? [unit]
   (str/starts-with? (get unit "name") "GD"))
 
@@ -100,7 +103,6 @@
   the type information by reducing this specific type into a void*."
   [ast]
   (let [unit-fn-ptr? #(.contains (unit-get-real-type %) "(*)")
-        unit-enum? #(str/starts-with? (unit-get-real-type %) "enum ")
         gen-mapping #(vector (get % "name") (get-in % ["type" "qualType"]))]
     (->> (get ast "inner")
          (filter unit-typedef?)
@@ -135,6 +137,46 @@
          (map (fn [[struct-name decl]]
                 {:name struct-name
                  :members (collect-struct-members decl)})))))
+
+(defn- extract-enums
+  [ast]
+  (let [decl-id->name (->> (get ast "inner")
+                           (filter unit-typedef?)
+                           (filter unit-gd-type?)
+                           (filter unit-enum?)
+                           (map #(vector (get-in % ["inner" 0 "ownedTagDecl" "id"])
+                                         (get % "name")))
+                           (into {}))
+        unit-enum-decl? #(= (get % "kind") "EnumDecl")
+        get-enum-value #(if-let [str-val (get-in % ["inner" 0 "value"])]
+                          (Integer. str-val)
+                          :auto)
+        collect-enum-options #(->> (get % "inner")
+                                   (map (fn [opt]
+                                          {:name (get opt "name")
+                                           :value (get-enum-value opt)})))
+        auto-enum? (fn [enum] (every? #(= (:value %) :auto) (:options enum)))
+        explicit-enum? (fn [enum] (every? #(not= (:value %) :auto) (:options enum)))
+        res (->> (filter unit-enum-decl? (get ast "inner"))
+                 (map (fn [decl]
+                        (when-let [struct-name (get decl-id->name (get decl "id"))]
+                          [struct-name decl])))
+                 (filter (complement nil?))
+                 (map (fn [[enum-name decl]]
+                        {:name enum-name
+                         :options (collect-enum-options decl)}))
+                 (map #(if (auto-enum? %)
+                         (update % :options (fn [old-options]
+                                              (map-indexed
+                                               (fn [i opt]
+                                                 (assoc opt :value i))
+                                               old-options)))
+                         %)))]
+    ;; Technically you can mix explicit and implicit values in an enum but I don't
+    ;; have a need or desire to handle it.
+    (if (not-every? #(or (auto-enum? %) (explicit-enum? %)) res)
+      (throw (Throwable. "Mixed implict+explicit enum encountered!!"))
+      res)))
 
 (defn- ensure-dir!
   [dir-name]
