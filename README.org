@@ -2,6 +2,8 @@
 
 Godot + Clojure integration via GDExtension.
 
+Work in progress!
+
 * Dev info
 ** Dev dependencies
 - =clang= :: Is used to obtain "gdextension_interface.h" AST
