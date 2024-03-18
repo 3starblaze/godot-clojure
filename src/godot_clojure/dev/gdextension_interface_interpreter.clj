@@ -5,12 +5,51 @@
    [clojure.java.shell :as shell]
    [clojure.string :as str]))
 
+(def type-schema
+  [:and
+   [:string {:min 1}] ;; Types cannot be empty
+   #"^(?!\d)"]) ;; Identifiers cannot start with a digit
+
+(def foreign-function-schema
+  [:map
+   [:name :string]
+   [:since :string]
+   [:params [:sequential
+             [:map
+              [:name :string]
+              [:type :string]
+              [:doc :string]]]]
+   [:return type-schema]])
+
+(def struct-schema
+  [:map
+   [:name :string]
+   [:members [:sequential
+              [:map
+               [:name :string]
+               [:type type-schema]]]]])
+
+(def enum-schema
+  [:map
+   [:name :string]
+   [:options [:sequential
+              [:map
+               [:name :string]
+               [:value :int]]]]])
+
+(def header-info-schema
+  [:map
+   [:functions [:sequential foreign-function-schema]]
+   [:structs [:sequential struct-schema]]
+   [:enums [:sequential enum-schema]]
+   [:irreducible-type-mapping [:map-of type-schema type-schema]]])
+
 (defn- read-gdextension-interface-ast!
   "Generate gd_extension.h AST and return it as JSON string."
   []
   (let [res (shell/sh "clang" "-Xclang" "-ast-dump=json" "godot-headers/gdextension_interface.h")]
     (if (zero? (:exit res))
-      (:out res)
+      (json/read-str (:out res))
       (throw (Throwable. (format "Unexpected error when getting AST: %s" (:err res)))))))
 
 (defn- gather-function-typedefs
@@ -178,6 +217,14 @@
       (throw (Throwable. "Mixed implict+explicit enum encountered!!"))
       res)))
 
+(defn- ast->header-info [ast]
+  {:functions (->> ast
+                   gather-function-typedefs
+                   (map function-typedef->function-data))
+   :structs (extract-structs ast)
+   :enums (extract-enums ast)
+   :irreducible-type-mapping (extract-irreducible-type-mapping ast)})
+
 (defn- ensure-dir!
   [dir-name]
   ;; TODO Handle situation when f exists but is not a dir
@@ -186,18 +233,10 @@
     (when (not (.exists f))
       (.mkdir f))))
 
-;; TODO Expose a schema so that the information shape is more clear
 ;; TODO Don't hardcode build dir and export file name
 (defn export-header-info!
   "Return a map that provides useful information about gdextension_interface.h."
   []
   (ensure-dir! "build")
-  (let [ast (json/read-str (read-gdextension-interface-ast!))]
-    (spit
-     "build/gdextension-interpretation.edn"
-     {:functions (->> ast
-                      gather-function-typedefs
-                      (map function-typedef->function-data))
-      :structs (extract-structs ast)
-      :enums (extract-enums ast)
-      :irreducible-type-mapping (extract-irreducible-type-mapping ast)})))
+  (spit "build/gdextension-interpretation.edn"
+        (ast->header-info (read-gdextension-interface-ast!))))

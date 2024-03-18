@@ -2,4 +2,9 @@
 
  :deps {org.clojure/data.json {:mvn/version "2.5.0"}
         net.java.dev.jna/jna {:mvn/version "5.8.0"}
-        insn/insn {:mvn/version "0.5.4"}}}
+        insn/insn {:mvn/version "0.5.4"}
+        metosin/malli {:mvn/version "0.14.0"}}
+
+ :aliases
+ {:test {:main-opts ["-m" "kaocha.runner"]
+         :extra-deps {lambdaisland/kaocha {:mvn/version "1.87.1366"}}}}}
