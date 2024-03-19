@@ -1,7 +1,13 @@
 (ns godot-clojure.dev.type-util-test
   (:require
-   [clojure.test :refer [are deftest is testing]]
+   [clojure.test :refer [deftest is testing use-fixtures]]
+   [godot-clojure.dev.gdextension-interface-interpreter :as gii]
+   [godot-clojure.dev.test-utils :as u]
    [godot-clojure.dev.type-util :as type-util]))
+
+(def ast nil)
+
+(use-fixtures :once (u/make-ast-loader-fixture #'ast))
 
 (def blank-header-info
   {:functions []
@@ -35,4 +41,11 @@
           convert (fn [c-type] (type-util/c->clojure-type info c-type))]
       (is (= (convert "GDExtensionCoolEnum") Integer))
       (is (= (convert "GDExtensionLameEnum") Integer))
-      (is (nil? (convert "GDExtensionDontExistEnum"))))))
+      (is (nil? (convert "GDExtensionDontExistEnum")))))
+  (testing "All types in functions are convertible"
+    (let [info (#'gii/ast->header-info ast)
+          types (->> (:functions info)
+                     (map #(vector (map :type (:params %)) (:return %)))
+                     flatten
+                     set)]
+      (is (empty? (filter #(nil? (type-util/c->clojure-type info %)) types))))))

@@ -2,15 +2,12 @@
   (:require
    [clojure.test :refer [deftest is testing use-fixtures]]
    [godot-clojure.dev.gdextension-interface-interpreter :as gii]
+   [godot-clojure.dev.test-utils :as u]
    [malli.core :as m]))
 
 (def ast nil)
 
-(defn ast-loader-fixture [f]
-  (alter-var-root #'ast (constantly (#'gii/read-gdextension-interface-ast!)))
-  (f))
-
-(use-fixtures :once ast-loader-fixture)
+(use-fixtures :once (u/make-ast-loader-fixture #'ast))
 
 (deftest ast->header-info-test []
   (let [info (#'gii/ast->header-info ast)]
