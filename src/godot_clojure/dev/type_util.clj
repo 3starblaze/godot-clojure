@@ -24,8 +24,8 @@
   (or (get c->java-base-mapping c-type)
       (when (first (filter #(= (:name %) c-type) (:structs header-info)))
         (struct-name->gen-class-name c-type))
-      ;; TODO Enums
-      ))
+      (when (seq (->> (:enums header-info) (filter #(= (:name %) c-type))))
+        (get c->java-base-mapping "int"))))
 
 (defn struct-info->class-map
   "Return a map that insn can use to make struct class."
