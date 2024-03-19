@@ -1,8 +1,8 @@
 (ns godot-clojure.dev.gdextension-interface-interpreter-test
   (:require
    [clojure.test :refer [deftest is testing use-fixtures]]
-   [malli.core :as m]
-   [godot-clojure.dev.gdextension-interface-interpreter :as gii]))
+   [godot-clojure.dev.gdextension-interface-interpreter :as gii]
+   [malli.core :as m]))
 
 (def ast nil)
 
@@ -17,10 +17,10 @@
     (testing "Header info matches the schema"
       (is (nil? (m/explain gii/header-info-schema info))))
     (testing "Test that no field is empty (sanity check)"
-      (is (not (empty? (:functions info))))
-      (is (not (empty? (:structs info))))
-      (is (not (empty? (:enums info))))
-      (is (not (empty? (:irreducible-type-mapping info)))))
+      (is (seq (:functions info)))
+      (is (seq (:structs info)))
+      (is (seq (:enums info)))
+      (is (seq (:irreducible-type-mapping info))))
     (testing "Check concrete examples"
       (is (= (->> info :functions (filter #(= (:name %) "variant_call")) first)
              {:name "variant_call",

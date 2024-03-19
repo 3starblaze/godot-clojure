@@ -1,7 +1,8 @@
 {:linters
  {;; :missing-docstring {:level :warning} ;; TODO Enable this when API is more or less stable
   :unsorted-required-namespaces {:level :warning}
-  :refer {:level :warning}
+  :refer {:level :warning
+          :exclude [clojure.test]}
   :single-key-in {:level :warning}
   :shadowed-var {:level :warning}
   :docstring-no-summary {:level :warning}
