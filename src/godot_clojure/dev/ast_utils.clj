@@ -9,50 +9,75 @@
    [:map-of :string :any]])
 
 (def schema-registry
-  (let [def-type-kv (fn [[typename & map-fields]]
-                      [typename
-                       (into [:map
-                              [::class [:= typename]]
-                              [::const :boolean]
-                              [::name ::identifier]]
-                             map-fields)])
-        def-pairs (map def-type-kv
-                       [[::struct
-                         [::members [:sequential
-                                     [:map
-                                      [::name ::identifier]
-                                      [::type [:ref ::type]]]]]]
-                        [::fn ;; Functions are allowed to be anonymous (they are not always typedef'd)
-                         [::return-type [:ref ::type]]
-                         [::args [:sequential [:ref ::type]]]]
-                        [::lib-fn
-                         [::return-type [:ref ::type]]
-                         [::args [:sequential [:ref ::type]]]
-                         [::lib-name :string] ;; String
-                         [::since :string]
-                         [::param-docs [:sequential
-                                        [:map
-                                         [::name ::identifier]
-                                         [::doc :string]]]]]
-                        [::enum
-                         [::members [:sequential
-                                     [:map
-                                      [::name ::identifier]
-                                      [::value :int]]]]]
-                        [::pointer
-                         [::pointed-type [:ref ::type]]]
-                        [::atomic-type]])
-        types (map first def-pairs)]
-    (into
-     {::type (into [:or] types)
-      ::typename (into [:enum] types)
-      ::ast [:and
-             [:map ["kind" [:= "TranslationUnitDecl"]]]
-             [:map-of :string :any]]
-      ::typedef typedef-schema
-      ::identifier :string ; Should be a bit more concerete ig
-      }
-     def-pairs)))
+  {::gd-extension-type-type
+   [:enum
+    ::struct
+    ::fn
+    ::lib-fn
+    ::enum
+    ::pointer
+    ::atomic-type]
+
+   ::gd-extension-type
+   [:multi {:dispatch ::gd-extension-type-type}
+    [::struct [:ref ::struct]]
+    [::fn [:ref ::fn]]
+    [::lib-fn [:ref ::lib-fn]]
+    [::enum [:ref ::enum]]
+    [::pointer [:ref ::pointer]]
+    [::atomic-type [:ref ::atomic-type]]]
+
+   ::struct
+   [:map
+    [::name ::identifier]
+    [::members [:sequential
+                [:map
+                 [::name ::identifier]
+                 [::type [:ref ::gd-extension-type]]]]]]
+
+   ::fn
+   [:map
+    [::return-type [:ref ::gd-extension-type]]
+    [::args [:sequential [:ref ::gd-extension-type]]]]
+
+   ::lib-fn
+   [:map
+    [::return-type [:ref ::gd-extension-type]]
+    [::args [:sequential [:ref ::gd-extension-type]]]
+    [::lib-name :string]
+    [::since :string]
+    [::args-docs [:sequential
+                  [:map
+                   [::name ::identifier]
+                   [::doc :string]]]]]
+
+   ::enum
+   [:map
+    [::name ::identifier]
+    [::members [:sequential
+                [:map
+                 [::name ::identifier]
+                 [::value :int]]]]]
+
+   ::pointer
+   [:map
+    [::pointed-type [:ref ::gd-extension-type]]]
+
+   ::atomic-type
+   [:map
+    [::name ::identifier]]
+
+   ::ast
+   [:and
+    [:map ["kind" [:= "TranslationUnitDecl"]]]
+    [:map-of :string :any]]
+
+   ::typedef
+   typedef-schema
+
+   ;; TODO: Make it more specific
+   ::identifier
+   :string})
 
 (defn- my=>
   "Convenvience function for specifying function signatures."
@@ -82,7 +107,7 @@
     (boolean $)))
 
 (defn typedef-categorizer
-  {:malli/schema (my=> [:cat ::typedef] ::typename)}
+  {:malli/schema (my=> [:cat ::typedef] ::gd-extension-type-type)}
   [typedef]
   (let [typename (get-in typedef ["type" "qualType"])]
     (cond
@@ -93,7 +118,7 @@
       :else ::atomic-type)))
 
 (defn non-function-str-type->type-representation
-  {:malli/schema (my=> [:cat :string] [:and ::type [:not ::fn]])}
+  {:malli/schema (my=> [:cat :string] [:and ::gd-extension-type [:not ::fn]])}
   [s]
   ;; The regex splits by whitespace and makes sure that "*" is always a token of its own because
   ;; "void * foo", "void* foo" and "void*foo" are all valid and should return tokens "void" "*" "foo".
@@ -113,14 +138,13 @@
         parsed (m/parse tokens-schema tokens)]
     (if (not= parsed ::m/invalid)
       (let [typename (::type parsed)
-            atomic {::class ::atomic-type
+            atomic {::gd-extension-type-type ::atomic-type
                     ::const (boolean (::const parsed))
                     ::name (if (vector? typename)
                              (str/join " " typename)
                              typename)}]
         (if (::pointer parsed)
-          {::class ::pointer
-           ::name "TODO" ;; Pointers don't really have names
+          {::gd-extension-type-type ::pointer
            ::const false
            ::pointed-type atomic}
           atomic))
@@ -138,8 +162,7 @@
         ;; `or` is needed when s is trimmed to empty string e.g. "()"`
         trim-parens (fn [s] (or (->> (str/split s #"^\(|\)$") (filter (complement empty?)) first) ""))
         trimmed-args (trim-parens args)]
-    {::class ::fn
-     ::name "::TODO-REMOVE-ME"
+    {::gd-extension-type-type ::fn
      ::const false
      ::return-type (str-type->type-representation (trim-parens ret))
      ::args (if (empty? trimmed-args)
@@ -147,7 +170,7 @@
               (map str-type->type-representation (str/split trimmed-args #"\s*,\s*")))}))
 
 (defn str-type->type-representation
-  {:malli/schema (my=> [:cat :string] ::type)}
+  {:malli/schema (my=> [:cat :string] ::gd-extension-type)}
   [s]
   (if (fn-c-string? s)
     (function-str-type->type-representation s)
@@ -172,7 +195,7 @@
   (let [comment-nodes (get (first (filter (kind= "FullComment") (get typedef "inner"))) "inner")]
     (merge
      (fn-typedef->fn typedef)
-     {::class ::lib-fn
+     {::gd-extension-type-type ::lib-fn
       ::lib-name (-> (filter (kind= "VerbatimLineComment") comment-nodes)
                      first
                      (get "text")
@@ -185,9 +208,9 @@
                   first
                   (get "text")
                   str/trim)
-      ::param-docs (->> comment-nodes
-                        (filter #(= (get % "kind") "ParamCommandComment"))
-                        (map param-command-comment->info))})))
+      ::args-docs (->> comment-nodes
+                       (filter #(= (get % "kind") "ParamCommandComment"))
+                       (map param-command-comment->info))})))
 
 (defn find-declaration
   {:malli/schema (my=> [:cat ::ast ::typedef] :any)} ; TODO Fix return type
@@ -210,7 +233,7 @@
         auto-enum? (empty? (filter #(not (nil? (nth % 1))) members))
         all-explicit-enum? (empty? (filter #(nil? (nth % 1)) members))]
     (if (or auto-enum? all-explicit-enum?)
-      {::class ::enum
+      {::gd-extension-type-type ::enum
        ::name (get typedef "name")
        ::const false
        ::members (map
@@ -228,7 +251,7 @@
 (defn struct-typedef->struct
   {:malli/schema (my=> [:cat ::ast ::typedef] ::struct)}
   [ast typedef]
-  {::class ::struct
+  {::gd-extension-type-type ::struct
    ::name (get typedef "name")
    ::const false
    ::members (map (fn [item]
@@ -240,12 +263,12 @@
 (defn atomic-typedef->atomic-type
   {:malli/schema (my=> [:cat ::typedef] ::atomic-type)}
   [typedef]
-  {::class ::atomic-type
+  {::gd-extension-type-type ::atomic-type
    ::const false
    ::name (get typedef "name")})
 
 (defn ast->types
-  {:malli/schema (my=> [:cat ::ast] [:sequential ::type])}
+  {:malli/schema (my=> [:cat ::ast] [:sequential ::gd-extension-type])}
   [ast]
   (let [typedefs (->> (get ast "inner")
                       (filter (m/validator typedef-schema))
