@@ -6,6 +6,7 @@
         metosin/malli {:mvn/version "0.14.0"}}
 
  :aliases
- {:dev {:extra-deps {lambdaisland/kaocha {:mvn/version "1.87.1366"}}}
+ {:dev {:extra-deps {lambdaisland/kaocha {:mvn/version "1.87.1366"}
+                     nrepl/nrepl {:mvn/version "1.1.0"}}}
   :test {:main-opts ["-m" "kaocha.runner"]
          :extra-deps {lambdaisland/kaocha {:mvn/version "1.87.1366"}}}}}

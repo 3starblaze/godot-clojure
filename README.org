@@ -8,32 +8,23 @@ Work in progress!
 ** Dev dependencies
 - =clang= :: Is used to obtain "gdextension_interface.h" AST
 - =clj-kondo= :: Static analysis and linting
+- =openjdk-11-jdk= :: Is used to be able to compile the shared library
 ** Scripts
 - ~clj-kondo --lint src/~ :: lint
-** How to test code?
-1. Build =entry.so= with =make= and copy it into your Godot project root.
-2. Compile core with ~clojure -M -e "(compile 'godot-clojure.core)"~
-3. Make =Main.gdextension= (or something that matches =^\w+\.gdextension$= regex) in Godot project root and write this inside.
-   #+begin_src
-[configuration]
-entry_symbol = "godot_entry"
-compatibility_minimum = 4.1.0
-reloadable = true
+** Dev: How to start NREPL with Godot?
+In project root:
+#+begin_src bash
+make
+mv entry.so src/dummy_godot_project/
+# Replace "..." with the correct values
+GODOT_CLOJURE_CLASSPATH="..." GODOT_CLOJURE_ENTRY_NS=godot-clojure.nrepl GODOT_CLOJURE_ENTRY_FN=entry-fn LD_LIBRARY_PATH="..." godot --export-debug "Linux/X11" --path src/dummy_godot_project --headless
+GODOT_CLOJURE_CLASSPATH="..." GODOT_CLOJURE_ENTRY_NS=godot-clojure.nrepl GODOT_CLOJURE_ENTRY_FN=entry-fn LD_LIBRARY_PATH="..." ./src/dummy_godot_project/test_project.x86_64
+#+end_src
 
-[libraries]
-linux.x86_64       = "res://entry.so"
-linux.debug.x86_64 = "res://entry.so"
-   #+end_src
-4. Export env vars =LD_LIBRARY_PATH=, =CLASSPATH= and =BUILDPATH=.
-   - =LD_LIBRARY_PATH= :: <jvm-path>/lib/server (e.g. /usr/lib/jvm/java-1.11.0-openjdk-amd64/lib/server)
+If all the steps went fine, the NREPL should be up and running. Try to connect it on =localhost:4200=.
 
-   - =CLASSPATH= :: Run ~clojure -Spath~ in =godot-clojure= root and use that.
-
-   - =BUILDPATH= :: Absolute path to <godot-clojure-root>/build
-5. Run ~godot <your-project>.godot~
-
-
-*** Notes
-- =entry.so= needs to be recompiled only when =src/entry.c= is modified.
-- =godot-clojure.core= needs to be recompiled only when the core source file changes.
-- Env var exporting is rather clunky, this will be handled automatically in the future.
+- Note: You can get =GODOT_CLOJURE_CLASSPATH= value by running =clojure -Spath -A:dev= at the project root. =src:classes:test= should be replaced with absolute paths.
+- Note: =LD_LIBRARY_PATH= should be =<something>/lib/server=, on my Ubuntu machine the correct =LD_LIBRARY_PATH= is "/usr/lib/jvm/java-1.11.0-openjdk-amd64/lib/server"
+** Things to fix
+*** TODO Make NREPL launch simpler
+*** TODO Change =BUILDPATH= env var to something simpler

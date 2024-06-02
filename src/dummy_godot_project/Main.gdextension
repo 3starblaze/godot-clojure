@@ -1,0 +1,8 @@
+[configuration]
+entry_symbol = "godot_entry"
+compatibility_minimum = 4.1.0
+reloadable = true
+
+[libraries]
+linux.x86_64       = "res://entry.so"
+linux.debug.x86_64 = "res://entry.so"

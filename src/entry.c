@@ -159,8 +159,16 @@ jobject ifn_invoke1(ClojureGlue *clj, jobject instance, jobject arg1) {
   return (*clj->env)->CallObjectMethod(clj->env, instance, clj->invoke1, arg1);
 }
 
+#define LOAD_ENV_OR_HALT(var_name, env_name)        \
+  const char *var_name = getenv(env_name);          \
+  if (!var_name) {                                  \
+    fprintf(stderr, env_name " is not defined!\n"); \
+    return 0;                                       \
+  }
+
 // Make sure you open godot from console in order to see these printf's
 // also you should be at Godot 4.1+ afaik
+// NOTE: This function should return true on success and false on failure.
 GDExtensionBool
 godot_entry(
   GDExtensionInterfaceGetProcAddress p_get_proc_address,
@@ -172,11 +180,9 @@ godot_entry(
   JavaVMInitArgs vm_args;
   JavaVMOption option;
 
-  const char *classpath = getenv("CLASSPATH");
-  if (!classpath) {
-    fprintf(stderr, "CLASSPATH is not defined!\n");
-    return 1;
-  }
+  LOAD_ENV_OR_HALT(classpath, "GODOT_CLOJURE_CLASSPATH")
+  LOAD_ENV_OR_HALT(entry_ns, "GODOT_CLOJURE_ENTRY_NS")
+  LOAD_ENV_OR_HALT(entry_fn, "GODOT_CLOJURE_ENTRY_FN")
 
   option.optionString = new_sprintf("%s%s", "-Djava.class.path=", classpath);
   vm_args.options = &option;
@@ -190,9 +196,7 @@ godot_entry(
   ClojureGlue clj;
   if (!init_clojure_glue(env, &clj)) return 1;
 
-  const char *entry_ns = "godot-clojure.core";
-
-  jobject entry_callback = clj_var(&clj, entry_ns, "entry-point");
+  jobject entry_callback = clj_var(&clj, entry_ns, entry_fn);
   HALT_ON_ERR(env);
 
   jclass require = clj_var(&clj, "clojure.core", "require");
