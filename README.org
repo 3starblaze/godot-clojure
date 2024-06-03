@@ -11,20 +11,6 @@ Work in progress!
 - =openjdk-11-jdk= :: Is used to be able to compile the shared library
 ** Scripts
 - ~clj-kondo --lint src/~ :: lint
-** Dev: How to start NREPL with Godot?
-In project root:
-#+begin_src bash
-make
-mv entry.so src/dummy_godot_project/
-# Replace "..." with the correct values
-GODOT_CLOJURE_CLASSPATH="..." GODOT_CLOJURE_ENTRY_NS=godot-clojure.nrepl GODOT_CLOJURE_ENTRY_FN=entry-fn LD_LIBRARY_PATH="..." godot --export-debug "Linux/X11" --path src/dummy_godot_project --headless
-GODOT_CLOJURE_CLASSPATH="..." GODOT_CLOJURE_ENTRY_NS=godot-clojure.nrepl GODOT_CLOJURE_ENTRY_FN=entry-fn LD_LIBRARY_PATH="..." ./src/dummy_godot_project/test_project.x86_64
-#+end_src
-
-If all the steps went fine, the NREPL should be up and running. Try to connect it on =localhost:4200=.
-
-- Note: You can get =GODOT_CLOJURE_CLASSPATH= value by running =clojure -Spath -A:dev= at the project root. =src:classes:test= should be replaced with absolute paths.
-- Note: =LD_LIBRARY_PATH= should be =<something>/lib/server=, on my Ubuntu machine the correct =LD_LIBRARY_PATH= is "/usr/lib/jvm/java-1.11.0-openjdk-amd64/lib/server"
+- ~bin/nrepl~ :: Launch nrepl with a Godot handle
 ** Things to fix
-*** TODO Make NREPL launch simpler
 *** TODO Change =BUILDPATH= env var to something simpler

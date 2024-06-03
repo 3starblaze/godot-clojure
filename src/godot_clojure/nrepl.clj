@@ -9,4 +9,5 @@
 
 (defn entry-fn [new-p-get-proc-address]
   (reset! p-get-proc-address new-p-get-proc-address)
-  (reset! server (start-server :port 4200)))
+  (reset! server (start-server :port 4200))
+  (println "NREPL server has been started at localhost:4200"))
