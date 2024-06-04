@@ -1,5 +1,9 @@
 (ns godot-clojure.dev.ast-utils
   (:require
+   [clojure.data.json :as json]
+   [clojure.edn :as edn]
+   [clojure.java.io :as io]
+   [clojure.java.shell :as shell]
    [clojure.string :as str]
    [malli.core :as m]))
 
@@ -61,11 +65,17 @@
 
    ::pointer
    [:map
+    [::pointed-type-const? :boolean]
     [::pointed-type [:ref ::gd-extension-type]]]
 
    ::atomic-type
    [:map
     [::name ::identifier]]
+
+   ::gd-extension-type-registry
+   [:map
+    [::type-registry [:map-of ::identifier ::gd-extension-type]]
+    [::lib-fn-registry [:map-of ::identifier ::lib-fn]]]
 
    ::ast
    [:and
@@ -139,13 +149,12 @@
     (if (not= parsed ::m/invalid)
       (let [typename (::type parsed)
             atomic {::gd-extension-type-type ::atomic-type
-                    ::const (boolean (::const parsed))
                     ::name (if (vector? typename)
                              (str/join " " typename)
                              typename)}]
         (if (::pointer parsed)
           {::gd-extension-type-type ::pointer
-           ::const false
+           ::pointed-type-const? (boolean (::const parsed))
            ::pointed-type atomic}
           atomic))
       (throw (java.lang.UnsupportedOperationException.
@@ -163,7 +172,6 @@
         trim-parens (fn [s] (or (->> (str/split s #"^\(|\)$") (filter (complement empty?)) first) ""))
         trimmed-args (trim-parens args)]
     {::gd-extension-type-type ::fn
-     ::const false
      ::return-type (str-type->type-representation (trim-parens ret))
      ::args (if (empty? trimmed-args)
               []
@@ -235,7 +243,6 @@
     (if (or auto-enum? all-explicit-enum?)
       {::gd-extension-type-type ::enum
        ::name (get typedef "name")
-       ::const false
        ::members (map
                   (fn [[member-name value]]
                     {::name member-name
@@ -253,7 +260,6 @@
   [ast typedef]
   {::gd-extension-type-type ::struct
    ::name (get typedef "name")
-   ::const false
    ::members (map (fn [item]
                     {::name (get item "name")
                      ::type (str-type->type-representation
@@ -264,7 +270,6 @@
   {:malli/schema (my=> [:cat ::typedef] ::atomic-type)}
   [typedef]
   {::gd-extension-type-type ::atomic-type
-   ::const false
    ::name (get typedef "name")})
 
 (defn ast->types
@@ -280,3 +285,51 @@
                                   [(partial struct-typedef->struct ast) ::struct]
                                   [atomic-typedef->atomic-type ::atomic-type]
                                   [lib-fn-typedef->fn ::lib-fn]]))))
+
+(defn ast->gd-extension-type-registry
+  {:malli/schema (my=> [:cat ::ast] [:map-of :string ::gd-extension-type-registry])}
+  [ast]
+  (let [typedefs (->> (get ast "inner")
+                      (filter (m/validator typedef-schema))
+                      (group-by typedef-categorizer))
+        collector (fn [[->type-f k]]
+                    (map ->type-f (k typedefs)))
+        types (flatten
+               (map collector [[fn-typedef->fn ::fn]
+                               [(partial enum-typedef->enum ast) ::enum]
+                               [(partial struct-typedef->struct ast) ::struct]
+                               [atomic-typedef->atomic-type ::atomic-type]
+                               [lib-fn-typedef->fn ::lib-fn]]))]
+    {::type-registry (->> types
+                          (filter #(not (nil? (::name %))))
+                          (map #(vector (::name %) %))
+                          (into {}))
+     ::lib-fn-registry (->> types
+                            (filter #(= (::gd-extension-type-type %) ::lib-fn))
+                            (map #(vector (::lib-name %) %))
+                            (into {}))}))
+
+
+(def godot-clojure-dir ".godot-clojure")
+
+(def gd-extension-type-registry-filename "gd-extension-type-registry.edn")
+
+(defn read-gd-extension-interface-ast!
+  "Try to retrieve gdextension_interface.h AST."
+  []
+  (let [res (shell/sh "clang" "-Xclang" "-ast-dump=json" "godot-headers/gdextension_interface.h")]
+    (if (zero? (:exit res))
+      (json/read-str (:out res))
+      (throw (Throwable. (format "Unexpected error when getting AST: %s" (:err res)))))))
+
+(defn export-gd-extension-type-registry!
+  [registry]
+  (let [dir (doto (io/file godot-clojure-dir) .mkdirs)]
+    (spit (io/file dir gd-extension-type-registry-filename) registry)))
+
+(defn import-gd-extension-type-registry!
+  []
+  (-> (io/file godot-clojure-dir gd-extension-type-registry-filename)
+      io/reader
+      java.io.PushbackReader.
+      edn/read))
