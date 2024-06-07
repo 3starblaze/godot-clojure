@@ -1,35 +1,21 @@
 (ns godot-clojure.native-caller
   (:require
-   [clojure.edn :as edn]
-   [clojure.java.io :as io])
+   [godot-clojure.dev.ast-utils :as ast-utils])
   (:import
    [com.sun.jna Function Pointer]))
 
-(defonce proc-loader-f nil)
-(defonce header-info nil)
+(def init-state nil)
 
 (defn init! [p-get-proc-address]
-  (when (or (not (nil? proc-loader-f))
-            (not (nil? header-info)))
+  ;; HACK: During testing I run `init!` several times and triggers this exception so I
+  ;; temporarily commented it out until I figure out the API.
+  #_(when (not (nil? init-state))
     (throw (Throwable. "Native caller reinitialization is not allowed!")))
-  (let [build-path (System/getenv "BUILDPATH")
-        ensure-trailing-slash (fn [s] (if (= (nth s (dec (count s))) \/)
-                                        s
-                                        (str s \/)))]
-    (when (nil? build-path)
-      (throw (Throwable. "Env var \"BUILDPATH\" is not set!")))
-    (alter-var-root
-     #'proc-loader-f
-     (constantly (Function/getFunction (Pointer. p-get-proc-address))))
-    (alter-var-root
-     #'header-info
-     ;; TODO Report when edn file is not found
-     ;; TODO Don't hardode filename
-     (constantly (-> (ensure-trailing-slash build-path)
-                     (str "gdextension-interpretation.edn")
-                     io/reader
-                     java.io.PushbackReader.
-                     edn/read)))))
+  (alter-var-root
+   #'init-state
+   (constantly
+    {:p-get-proc-address (Function/getFunction (Pointer. p-get-proc-address))
+     :gd-extension-type-registry (ast-utils/import-gd-extension-type-registry!)})))
 
 ;; TODO Implement this properly
 (defn eq-type? [_arg-info _arg]
@@ -48,16 +34,21 @@
     "void" Void
     (throw (Throwable. (format "Unexpected c-type \"%s\"" c-type)))))
 
+(defn unsafe-call!
+  "Call `f-name` without any checks.
+
+  Wrong parameters might cause segfault and unexpected behavior, be careful with this function."
+  [f-name ret-type & args]
+  (-> (.invokePointer (:p-get-proc-address init-state) (to-array [f-name]))
+      Function/getFunction
+      (.invoke ret-type (to-array args))))
+
 (defn call! [f-name & args]
-  (let [fn-info (->> (:functions header-info)
-                     (filter #(= (:name %) f-name))
-                     first)]
+  (let [fn-info (get-in init-state [:gd-extension-type-registry
+                                    ::ast-utils/lib-fn-registry
+                                    f-name])]
     (when (nil? fn-info)
-      (throw (Throwable. (format "Native function `%s` does not exist!" name))))
+      (throw (Throwable. (format "Native function `%s` does not exist!" f-name))))
     (when (not (args-match? fn-info args))
       (throw (Throwable. (format "Function arguments are mismatched!"))))
-    (let [native-f (->> (to-array [f-name])
-                        (.invokePointer proc-loader-f)
-                        Function/getFunction)
-          ret-type (c-type->java-type (:return fn-info))]
-      (.invoke native-f ret-type (to-array args)))))
+    (apply unsafe-call! f-name (c-type->java-type (:return fn-info)) args)))

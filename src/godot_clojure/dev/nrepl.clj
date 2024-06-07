@@ -1,4 +1,4 @@
-(ns godot-clojure.nrepl
+(ns godot-clojure.dev.nrepl
   "Namespace responsible for providing NREPL with access to Godot."
   (:require
    [nrepl.server :refer [start-server]]))

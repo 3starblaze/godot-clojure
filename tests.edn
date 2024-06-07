@@ -1,1 +1,4 @@
-#kaocha/v1 {}
+#kaocha/v1
+{:plugins [:hooks]
+ :tests [{:id :main
+          :skip-meta [:godot]}]}

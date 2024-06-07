@@ -12,5 +12,6 @@ Work in progress!
 ** Scripts
 - ~clj-kondo --lint src/~ :: lint
 - ~bin/nrepl~ :: Launch nrepl with a Godot handle
+- ~bin/test-godot~ :: Run tests that require access to godot
 ** Things to fix
-*** TODO Change =BUILDPATH= env var to something simpler
+*** TODO Make ~bin/test-godot~ exit after the testing is done

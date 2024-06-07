@@ -1,0 +1,12 @@
+#!/usr/bin/env bb
+
+(require '[babashka.process :refer [process]])
+(require '[bb-utils :as u])
+
+(process {:inherit true
+          :dir (u/get-project-root!)
+          :env (u/get-env! "godot-clojure.dev.testing" "run-godot-tests!")}
+         "./src/dummy_godot_project/test_project.x86_64")
+
+(while true
+  (Thread/sleep (.-MAX_VALUE Long)))
