@@ -12,6 +12,7 @@ Work in progress!
 ** Scripts
 - ~clj-kondo --lint src/~ :: lint
 - ~bin/nrepl~ :: Launch nrepl with a Godot handle
+- ~bin/kaocha --skip godot~ :: Run all non-godot tests (godot tests have to be run via ~bin/test-godot~ because they require access to godot runtime)
 - ~bin/test-godot~ :: Run tests that require access to godot
 ** Things to fix
 *** TODO Make ~bin/test-godot~ exit after the testing is done

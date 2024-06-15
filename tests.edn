@@ -1,4 +1,6 @@
 #kaocha/v1
 {:plugins [:hooks]
  :tests [{:id :main
-          :skip-meta [:godot]}]}
+          :skip-meta [:godot]}
+         {:id :godot
+          :focus-meta [:godot]}]}
