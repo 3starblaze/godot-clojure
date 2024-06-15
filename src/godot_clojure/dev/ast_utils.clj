@@ -290,6 +290,11 @@
   {:malli/schema (my=> [:cat ::ast] [:map-of :string ::gd-extension-type-registry])}
   [ast]
   (let [typedefs (->> (get ast "inner")
+                      ;; NOTE: It would be more robust to compare against "GDExtension" but there
+                      ;; is "GDObjectInstanceID" which is the only item that doesn't start with
+                      ;; "GDExtension".
+                      (filter #(let [n (get % "name")]
+                                 (and (string? n) (str/starts-with? n "GD"))))
                       (filter (m/validator typedef-schema))
                       (group-by typedef-categorizer))
         collector (fn [[->type-f k]]
