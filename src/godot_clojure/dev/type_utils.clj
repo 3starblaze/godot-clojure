@@ -1,8 +1,10 @@
-(ns godot-clojure.dev.type-util
+(ns godot-clojure.dev.type-utils
   (:require
-   [clojure.string :as s]))
+   [godot-clojure.dev.ast-utils :as ast-utils])
+  (:import
+   [com.sun.jna Function Pointer]))
 
-(def gen-struct-ns 'godot-clojure.gen)
+(def gen-struct-ns 'godot-clojure.gen.struct)
 
 (defn struct-name->gen-class-name
   [struct-name]
@@ -37,29 +39,31 @@
    "wchar_t" Character
    "wchar_t *" String})
 
-(defn c->clojure-type
-  [header-info c-type]
-  ;; TODO Keep info about const modifier
-  (let [typename (if (s/starts-with? c-type "const ")
-                   (subs c-type (count "const "))
-                   c-type)]
-    (or (get c->java-base-mapping typename)
-      (when (first (filter #(= (:name %) typename) (:structs header-info)))
-        (struct-name->gen-class-name typename))
-      (when (seq (->> (:enums header-info) (filter #(= (:name %) typename))))
-        (get c->java-base-mapping "int"))
-      ;; TODO Respect iredducible types as their own types
-      (when-let [new-typename (get (:irreducible-type-mapping header-info) typename)]
-        (recur header-info new-typename)))))
+(defn gd-extension-type->java-type
+  "Match GDExtension type with a Java type or return nil when it's not possible."
+  [gd-extension-type]
+  (case (::ast-utils/gd-extension-type-type gd-extension-type)
+    ::ast-utils/struct (struct-name->gen-class-name gd-extension-type)
+    ::ast-utils/fn Function
+    ::ast-utils/lib-fn Function
+    ::ast-utils/enum Integer
+    ::ast-utils/pointer Pointer
+    ::ast-utils/atomic-type (get c->java-base-mapping (::ast-utils/name gd-extension-type))))
+
+(defn can-call-lib-fn?
+  [lib-fn args]
+  (= (map gd-extension-type->java-type (::ast-utils/args lib-fn))
+     (map type args)))
 
 (defn struct-info->class-map
   "Return a map that insn can use to make struct class."
   [struct-info]
-  {:name (struct-name->gen-class-name (:name struct-info))
+  {:name (struct-name->gen-class-name (::ast-utils/name struct-info))
    :super 'com.sun.jna.Structure
-   :annotations {com.sun.jna.Structure$FieldOrder (map :name (:members struct-info))}
+   :annotations {com.sun.jna.Structure$FieldOrder
+                 (map ::ast-utils/name (::ast-utils/members struct-info))}
    :fields (map (fn [member]
                   {:flags [:public]
-                   :type (:type member) ;; TODO Handle type conversion, C->Java
-                   :name (:name member)})
-                (:members struct-info))})
+                   :type (gd-extension-type->java-type (::ast-utils/type member))
+                   :name (::ast-utils/name member)})
+                (::ast-utils/members struct-info))})

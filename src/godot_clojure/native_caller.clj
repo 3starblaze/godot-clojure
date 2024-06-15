@@ -1,6 +1,7 @@
 (ns godot-clojure.native-caller
   (:require
-   [godot-clojure.dev.ast-utils :as ast-utils])
+   [godot-clojure.dev.ast-utils :as ast-utils]
+   [godot-clojure.dev.type-utils :as type-utils])
   (:import
    [com.sun.jna Function Pointer]))
 
@@ -17,23 +18,6 @@
     {:p-get-proc-address (Function/getFunction (Pointer. p-get-proc-address))
      :gd-extension-type-registry (ast-utils/import-gd-extension-type-registry!)})))
 
-;; TODO Implement this properly
-(defn eq-type? [_arg-info _arg]
-  true)
-
-(defn args-match? [fn-info given-args]
-  (if (not= (count given-args) (count (:params fn-info)))
-    false
-    (->> (map vector (:params fn-info) given-args)
-         (every? (fn [[arg-info arg]] (eq-type? arg-info arg))))))
-
-;; TODO Finish this. Probably should combine with `eq-type?` since `eq-type?` will
-;; probably need to convert the type anyways.
-(defn c-type->java-type [c-type]
-  (case c-type
-    "void" Void
-    (throw (Throwable. (format "Unexpected c-type \"%s\"" c-type)))))
-
 (defn unsafe-call!
   "Call `f-name` without any checks.
 
@@ -49,6 +33,6 @@
                                     f-name])]
     (when (nil? fn-info)
       (throw (Throwable. (format "Native function `%s` does not exist!" f-name))))
-    (when (not (args-match? fn-info args))
+    (when (not (type-utils/can-call-lib-fn? fn-info args))
       (throw (Throwable. (format "Function arguments are mismatched!"))))
-    (apply unsafe-call! f-name (c-type->java-type (:return fn-info)) args)))
+    (apply unsafe-call! f-name (type-utils/gd-extension-type->java-type (:return fn-info)) args)))
