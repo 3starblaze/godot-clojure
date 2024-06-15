@@ -11,8 +11,13 @@
   (symbol (str gen-struct-ns "." struct-name)))
 
 (def c->java-base-mapping
-  {"GDExtensionBool" Boolean
-   "GDExtensionBool *" com.sun.jna.ptr.IntByReference ;; There is no boolean by reference type
+  ;; HACK: We are assuming GD* types, that information is typedef'd
+  {"GDObjectInstanceID" Long
+   "GDObjectInstanceID *" com.sun.jna.ptr.LongByReference
+   "GDExtensionBool" Byte
+   "GDExtensionBool *" com.sun.jna.ptr.ByteByReference
+   "GDExtensionInt" com.sun.jna.ptr.LongByReference
+   "GDExtensionInt *" com.sun.jna.ptr.LongByReference
    "char" Byte
    "char *" String
    "char16_t" Character
@@ -47,8 +52,10 @@
     ::ast-utils/fn Function
     ::ast-utils/lib-fn Function
     ::ast-utils/enum Integer
-    ::ast-utils/pointer Pointer
-    ::ast-utils/atomic-type (get c->java-base-mapping (::ast-utils/name gd-extension-type))))
+    ::ast-utils/pointer Pointer ;; TODO: Utilize `c->java-base-mapping` for pointer typing
+    ::ast-utils/atomic-type (get c->java-base-mapping (::ast-utils/name gd-extension-type))
+    (throw (ex-info "Could not match `gd-extension-type`"
+                    {:gd-extension-type gd-extension-type}))))
 
 (defn can-call-lib-fn?
   [lib-fn args]

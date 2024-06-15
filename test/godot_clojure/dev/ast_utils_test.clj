@@ -4,14 +4,9 @@
    [godot-clojure.dev.ast-utils :as ast-utils]
    [godot-clojure.dev.test-utils :as u]))
 
-(def registry nil)
-
-(defn load-registry-fixture [f]
-  (alter-var-root #'registry (constantly (ast-utils/import-gd-extension-type-registry!)))
-  (f))
+(def registry @ast-utils/gd-extension-type-registry)
 
 (use-fixtures :once
-  load-registry-fixture
   (u/make-malli-instrumentation-fixture 'godot-clojure.dev.ast-utils))
 
 (deftest registry-sanity-checks []

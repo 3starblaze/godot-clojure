@@ -338,3 +338,11 @@
       io/reader
       java.io.PushbackReader.
       edn/read))
+
+(def gd-extension-type-registry
+  (delay
+    (if (.exists (io/file godot-clojure-dir gd-extension-type-registry-filename))
+      (import-gd-extension-type-registry!)
+      (let [reg (ast->gd-extension-type-registry (read-gd-extension-interface-ast!))]
+        (export-gd-extension-type-registry! reg)
+        reg))))
