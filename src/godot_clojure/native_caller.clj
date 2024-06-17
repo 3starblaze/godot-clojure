@@ -5,7 +5,7 @@
   (:import
    [com.sun.jna Function Pointer]))
 
-(def init-state nil)
+(defonce init-state nil)
 
 (defn init! [p-get-proc-address]
   ;; HACK: During testing I run `init!` several times and triggers this exception so I
@@ -33,6 +33,18 @@
                                     f-name])]
     (when (nil? fn-info)
       (throw (Throwable. (format "Native function `%s` does not exist!" f-name))))
-    (when (not (type-utils/can-call-lib-fn? fn-info args))
+    (when (not (type-utils/can-call-gd-extension-fn? fn-info args))
       (throw (Throwable. (format "Function arguments are mismatched!"))))
-    (apply unsafe-call! f-name (type-utils/gd-extension-type->java-type (:return fn-info)) args)))
+    (apply unsafe-call!
+           f-name
+           (type-utils/gd-extension-type->java-type (::ast-utils/return-type fn-info))
+           args)))
+
+(defn java-string->string-name
+  "Convert Java String into Godot's StringName."
+  [s]
+  ;; HACK: Hardcoded StringName size. It probably wouldn't change but a "cleaner" approach would
+  ;; probably be taking it from extension_api.json "builtin_class_sizes" key
+  (let [string-name-ptr (com.sun.jna.Memory. 8)]
+    (call! "string_name_new_with_utf8_chars" string-name-ptr s)
+    string-name-ptr))

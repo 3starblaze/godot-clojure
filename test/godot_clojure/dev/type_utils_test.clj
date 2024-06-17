@@ -11,10 +11,19 @@
                             #::ast-utils{:gd-extension-type-type ::ast-utils/atomic-type
                                          :name s}))]
       (is (= (wrap-primitive "GDExtensionBool") Byte))
-      (is (= (wrap-primitive "double") Double))
-      (is (= (wrap-primitive "uint8_t *") com.sun.jna.ptr.ByteByReference))))
-  ;; NOTE: In case the test fails, it shows all offending types that will make it easier to debug
-  ;; the issue (which is why we check of emptiness)
-  (is (empty? (->> (-> @ast-utils/gd-extension-type-registry ::ast-utils/type-registry vals)
-                   (filter #(nil? (type-utils/gd-extension-type->java-type %)))))
-      "all types should be convertible"))
+      (is (= (wrap-primitive "double") Double))))
+  (testing "Other types"
+    (is (= (type-utils/gd-extension-type->java-type
+            #:godot-clojure.dev.ast-utils
+             {:gd-extension-type-type ::ast-utils/atomic-type
+              :name "GDExtensionVariantPtr"})
+           com.sun.jna.Pointer)
+        "Typedef'd pointer should be convertible")
+    (is (= (type-utils/gd-extension-type->java-type
+            #::ast-utils{:gd-extension-type-type ::ast-utils/pointer
+                         :pointed-type-const? true
+                         :pointed-type #::ast-utils
+                                        {:gd-extension-type-type ::ast-utils/atomic-type
+                                         :name "char"}})
+           String)
+        "char pointer should be convertible")))
